@@ -192,3 +192,51 @@ func TestHealthCheck(t *testing.T) {
 		t.Fatalf("HealthCheck: %v", err)
 	}
 }
+
+func TestGetSecretAppliesPrefix(t *testing.T) {
+	var seenPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(kvV2Body))
+	}))
+	defer srv.Close()
+
+	b, err := New(context.Background(), Config{
+		Address:      srv.URL,
+		Token:        "test-token",
+		SecretPrefix: "prod/",
+		Cache:        cache.Config{},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer b.(*Backend).Close()
+
+	if _, err := b.GetSecret(context.Background(), "shared/postgres"); err != nil {
+		t.Fatalf("GetSecret: %v", err)
+	}
+	if seenPath != "/v1/secret/data/prod/shared/postgres" {
+		t.Fatalf("path = %q, want /v1/secret/data/prod/shared/postgres", seenPath)
+	}
+}
+
+func TestGetSecretEmptyPrefixUnchanged(t *testing.T) {
+	var seenPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(kvV2Body))
+	}))
+	defer srv.Close()
+
+	b := newBackend(t, srv, cache.Config{})
+	defer b.Close()
+
+	if _, err := b.GetSecret(context.Background(), "shared/postgres"); err != nil {
+		t.Fatalf("GetSecret: %v", err)
+	}
+	if seenPath != "/v1/secret/data/shared/postgres" {
+		t.Fatalf("path = %q, want /v1/secret/data/shared/postgres", seenPath)
+	}
+}

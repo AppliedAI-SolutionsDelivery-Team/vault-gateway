@@ -51,6 +51,9 @@ type Config struct {
 	// NamingStrategy selects how Vault paths map onto Key Vault secrets. Valid
 	// values are "flat" and "json". Empty defaults to "flat".
 	NamingStrategy string
+	// SecretPrefix is prepended to every requested path before encoding into a
+	// Key Vault secret name. Typically an environment prefix such as "prod/".
+	SecretPrefix string
 	// Cache configures the in-memory secret cache.
 	Cache cache.Config
 }
@@ -70,6 +73,7 @@ type kvClient interface {
 type Backend struct {
 	client   kvClient
 	strategy string
+	prefix   string
 	cache    *cache.Cache
 	metrics  *metrics.Metrics
 	logger   *slog.Logger
@@ -105,12 +109,12 @@ func New(ctx context.Context, cfg Config, m *metrics.Metrics, logger *slog.Logge
 		return nil, fmt.Errorf("azure: build key vault client: %w", err)
 	}
 
-	return newWithClient(&azsecretsAdapter{client: client}, strategy, cfg.Cache, m, logger), nil
+	return newWithClient(&azsecretsAdapter{client: client}, strategy, cfg.SecretPrefix, cfg.Cache, m, logger), nil
 }
 
 // newWithClient builds a Backend around an arbitrary kvClient. It is the
 // injection point used by tests.
-func newWithClient(client kvClient, strategy string, cacheCfg cache.Config, m *metrics.Metrics, logger *slog.Logger) *Backend {
+func newWithClient(client kvClient, strategy, prefix string, cacheCfg cache.Config, m *metrics.Metrics, logger *slog.Logger) *Backend {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -120,6 +124,7 @@ func newWithClient(client kvClient, strategy string, cacheCfg cache.Config, m *m
 	return &Backend{
 		client:   client,
 		strategy: strategy,
+		prefix:   prefix,
 		cache:    cache.New(cacheCfg),
 		metrics:  m,
 		logger:   logger.With("backend", backendName),
@@ -142,6 +147,7 @@ func (b *Backend) HealthCheck(ctx context.Context) error {
 
 // GetSecret retrieves all key/value pairs at path, consulting the cache first.
 func (b *Backend) GetSecret(ctx context.Context, path string) (map[string]string, error) {
+	path = b.prefix + path
 	if value, hit, isNegative := b.cache.Get(path); hit {
 		b.recordCacheHit()
 		if isNegative {

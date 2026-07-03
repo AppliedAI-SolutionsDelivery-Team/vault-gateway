@@ -75,7 +75,7 @@ func TestGetSecretFlatMultiKey(t *testing.T) {
 		// A secret for a different path must be ignored.
 		"other-service--token": "nope",
 	}}
-	b := newWithClient(fake, strategyFlat, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyFlat, "", disabledCache(), nil, nil)
 
 	got, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if err != nil {
@@ -94,7 +94,7 @@ func TestGetSecretFlatNotFound(t *testing.T) {
 	fake := &fakeClient{secrets: map[string]string{
 		"other-service--token": "x",
 	}}
-	b := newWithClient(fake, strategyFlat, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyFlat, "", disabledCache(), nil, nil)
 
 	_, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if !errors.Is(err, backend.ErrSecretNotFound) {
@@ -104,7 +104,7 @@ func TestGetSecretFlatNotFound(t *testing.T) {
 
 func TestGetSecretFlatListError(t *testing.T) {
 	fake := &fakeClient{listErr: errors.New("network down")}
-	b := newWithClient(fake, strategyFlat, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyFlat, "", disabledCache(), nil, nil)
 
 	_, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if !errors.Is(err, backend.ErrBackendUnavailable) {
@@ -116,7 +116,7 @@ func TestGetSecretJSON(t *testing.T) {
 	fake := &fakeClient{secrets: map[string]string{
 		"opus--workflow-engine": `{"db_password":"s3cr3t","db_host":"db.internal"}`,
 	}}
-	b := newWithClient(fake, strategyJSON, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyJSON, "", disabledCache(), nil, nil)
 
 	got, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if err != nil {
@@ -133,7 +133,7 @@ func TestGetSecretJSON(t *testing.T) {
 
 func TestGetSecretJSONNotFound(t *testing.T) {
 	fake := &fakeClient{secrets: map[string]string{}}
-	b := newWithClient(fake, strategyJSON, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyJSON, "", disabledCache(), nil, nil)
 
 	_, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if !errors.Is(err, backend.ErrSecretNotFound) {
@@ -143,7 +143,7 @@ func TestGetSecretJSONNotFound(t *testing.T) {
 
 func TestGetSecretJSONBackendError(t *testing.T) {
 	fake := &fakeClient{getErr: errors.New("boom")}
-	b := newWithClient(fake, strategyJSON, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyJSON, "", disabledCache(), nil, nil)
 
 	_, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if !errors.Is(err, backend.ErrBackendUnavailable) {
@@ -155,7 +155,7 @@ func TestGetSecretJSONInvalidJSON(t *testing.T) {
 	fake := &fakeClient{secrets: map[string]string{
 		"opus--workflow-engine": "not json",
 	}}
-	b := newWithClient(fake, strategyJSON, disabledCache(), nil, nil)
+	b := newWithClient(fake, strategyJSON, "", disabledCache(), nil, nil)
 
 	_, err := b.GetSecret(context.Background(), "opus/workflow-engine")
 	if !errors.Is(err, backend.ErrBackendUnavailable) {
@@ -167,7 +167,7 @@ func TestGetSecretCachesPositive(t *testing.T) {
 	fake := &fakeClient{secrets: map[string]string{
 		"opus--workflow-engine": `{"k":"v"}`,
 	}}
-	b := newWithClient(fake, strategyJSON, enabledCache(), nil, nil)
+	b := newWithClient(fake, strategyJSON, "", enabledCache(), nil, nil)
 	ctx := context.Background()
 
 	if _, err := b.GetSecret(ctx, "opus/workflow-engine"); err != nil {
@@ -192,7 +192,7 @@ func TestGetSecretCachesPositive(t *testing.T) {
 
 func TestGetSecretCachesNegative(t *testing.T) {
 	fake := &fakeClient{secrets: map[string]string{}}
-	b := newWithClient(fake, strategyFlat, enabledCache(), nil, nil)
+	b := newWithClient(fake, strategyFlat, "", enabledCache(), nil, nil)
 	ctx := context.Background()
 
 	if _, err := b.GetSecret(ctx, "missing/path"); !errors.Is(err, backend.ErrSecretNotFound) {
@@ -210,25 +210,70 @@ func TestGetSecretCachesNegative(t *testing.T) {
 
 func TestHealthCheck(t *testing.T) {
 	okFake := &fakeClient{secrets: map[string]string{"a": "b"}}
-	b := newWithClient(okFake, strategyFlat, disabledCache(), nil, nil)
+	b := newWithClient(okFake, strategyFlat, "", disabledCache(), nil, nil)
 	if err := b.HealthCheck(context.Background()); err != nil {
 		t.Fatalf("HealthCheck error: %v", err)
 	}
 
 	badFake := &fakeClient{listErr: errors.New("unreachable")}
-	bb := newWithClient(badFake, strategyFlat, disabledCache(), nil, nil)
+	bb := newWithClient(badFake, strategyFlat, "", disabledCache(), nil, nil)
 	if err := bb.HealthCheck(context.Background()); !errors.Is(err, backend.ErrBackendUnavailable) {
 		t.Fatalf("HealthCheck err = %v, want ErrBackendUnavailable", err)
 	}
 }
 
 func TestNameAndClose(t *testing.T) {
-	b := newWithClient(&fakeClient{}, strategyFlat, disabledCache(), nil, nil)
+	b := newWithClient(&fakeClient{}, strategyFlat, "", disabledCache(), nil, nil)
 	if b.Name() != "azure" {
 		t.Fatalf("Name() = %q, want azure", b.Name())
 	}
 	if err := b.Close(); err != nil {
 		t.Fatalf("Close() = %v, want nil", err)
+	}
+}
+
+func TestGetSecretAppliesPrefixFlat(t *testing.T) {
+	fake := &fakeClient{secrets: map[string]string{
+		"prod-shared-postgres--password": "s3cr3t",
+	}}
+	b := newWithClient(fake, strategyFlat, "prod/", disabledCache(), nil, nil)
+
+	got, err := b.GetSecret(context.Background(), "shared/postgres")
+	if err != nil {
+		t.Fatalf("GetSecret error: %v", err)
+	}
+	if got["password"] != "s3cr3t" {
+		t.Fatalf("got %v, want password=s3cr3t", got)
+	}
+}
+
+func TestGetSecretAppliesPrefixJSON(t *testing.T) {
+	fake := &fakeClient{secrets: map[string]string{
+		"prod--shared--postgres": `{"password":"s3cr3t"}`,
+	}}
+	b := newWithClient(fake, strategyJSON, "prod/", disabledCache(), nil, nil)
+
+	got, err := b.GetSecret(context.Background(), "shared/postgres")
+	if err != nil {
+		t.Fatalf("GetSecret error: %v", err)
+	}
+	if got["password"] != "s3cr3t" {
+		t.Fatalf("got %v, want password=s3cr3t", got)
+	}
+}
+
+func TestGetSecretEmptyPrefixUnchanged(t *testing.T) {
+	fake := &fakeClient{secrets: map[string]string{
+		"shared-postgres--password": "s3cr3t",
+	}}
+	b := newWithClient(fake, strategyFlat, "", disabledCache(), nil, nil)
+
+	got, err := b.GetSecret(context.Background(), "shared/postgres")
+	if err != nil {
+		t.Fatalf("GetSecret error: %v", err)
+	}
+	if got["password"] != "s3cr3t" {
+		t.Fatalf("got %v, want password=s3cr3t", got)
 	}
 }
 

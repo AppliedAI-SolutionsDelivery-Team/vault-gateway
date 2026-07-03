@@ -64,6 +64,9 @@ type Config struct {
 	// Token is an optional static Vault token. When set, Kubernetes login is
 	// skipped entirely. Intended for tests and development.
 	Token string
+	// SecretPrefix is prepended to every requested path before reading from the
+	// KV v2 mount. Typically an environment prefix such as "prod/".
+	SecretPrefix string
 	// Cache configures the in-memory secret cache embedded by the backend.
 	Cache cache.Config
 }
@@ -74,6 +77,7 @@ type Config struct {
 type Backend struct {
 	client *vaultapi.Client
 	cache  *cache.Cache
+	prefix string
 	metric *metrics.Metrics
 	logger *slog.Logger
 
@@ -125,6 +129,7 @@ func New(ctx context.Context, cfg Config, m *metrics.Metrics, logger *slog.Logge
 	b := &Backend{
 		client: client,
 		cache:  cache.New(cfg.Cache),
+		prefix: cfg.SecretPrefix,
 		metric: m,
 		logger: logger,
 	}
@@ -219,6 +224,7 @@ func (b *Backend) startRenewal(ctx context.Context, secret *vaultapi.Secret) err
 
 // GetSecret reads the KV v2 secret at path and returns its key-value pairs.
 func (b *Backend) GetSecret(ctx context.Context, path string) (map[string]string, error) {
+	path = b.prefix + path
 	if value, hit, isNegative := b.cache.Get(path); hit {
 		b.recordCacheHit()
 		if isNegative {

@@ -19,3 +19,6 @@ config:
     type: "azure"
   azure:
     vaultURL: "https://my-keyvault.vault.azure.net"
+    # secretPrefix scopes all secret lookups to an environment or team prefix,
+    # e.g. "prod/" so that "shared/postgres" resolves to "prod-shared-postgres".
+    secretPrefix: ""

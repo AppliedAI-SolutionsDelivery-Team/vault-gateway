@@ -137,6 +137,7 @@ func buildBackend(ctx context.Context, cfg *config.Config, m *metrics.Metrics, l
 		return azurebackend.New(ctx, azurebackend.Config{
 			VaultURL:       cfg.Azure.VaultURL,
 			NamingStrategy: cfg.Azure.NamingStrategy,
+			SecretPrefix:   cfg.Azure.SecretPrefix,
 			Cache:          cfg.Azure.Cache.ToCache(),
 		}, m, logger)
 	case config.BackendVault:
@@ -147,6 +148,7 @@ func buildBackend(ctx context.Context, cfg *config.Config, m *metrics.Metrics, l
 			TLSSkipVerify: cfg.Vault.TLSSkipVerify,
 			CACert:        cfg.Vault.CACert,
 			Token:         cfg.Vault.Token,
+			SecretPrefix:  cfg.Vault.SecretPrefix,
 			Cache:         cfg.Vault.Cache.ToCache(),
 		}, m, logger)
 	case config.BackendGCP:

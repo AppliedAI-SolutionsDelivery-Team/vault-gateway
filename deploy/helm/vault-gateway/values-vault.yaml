@@ -7,3 +7,6 @@ config:
     type: "vault"
   vault:
     address: "https://vault.vault-system:8200"
+    # secretPrefix scopes all secret lookups to an environment prefix,
+    # e.g. "prod/" so that "shared/postgres" resolves to "prod/shared/postgres".
+    secretPrefix: ""

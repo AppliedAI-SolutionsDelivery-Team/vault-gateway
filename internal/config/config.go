@@ -123,6 +123,7 @@ type AWSConfig struct {
 type AzureConfig struct {
 	VaultURL       string      `yaml:"vaultURL"`
 	NamingStrategy string      `yaml:"namingStrategy"`
+	SecretPrefix   string      `yaml:"secretPrefix"`
 	Cache          CacheConfig `yaml:"cache"`
 }
 
@@ -134,6 +135,7 @@ type VaultConfig struct {
 	TLSSkipVerify bool        `yaml:"tlsSkipVerify"`
 	CACert        string      `yaml:"caCert"`
 	Token         string      `yaml:"token"`
+	SecretPrefix  string      `yaml:"secretPrefix"`
 	Cache         CacheConfig `yaml:"cache"`
 }
 
