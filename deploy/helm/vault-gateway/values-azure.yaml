@@ -15,8 +15,7 @@ podLabels:
   azure.workload.identity/use: "true"
 
 config:
-  backend:
-    type: "azure"
+  backend: "azure"
   azure:
     vaultURL: "https://my-keyvault.vault.azure.net"
     # secretPrefix scopes all secret lookups to an environment or team prefix,

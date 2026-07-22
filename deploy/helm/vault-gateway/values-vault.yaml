@@ -3,10 +3,11 @@
 backend: "vault"
 
 config:
-  backend:
-    type: "vault"
+  backend: "vault"
   vault:
     address: "https://vault.vault-system:8200"
+    # Kubernetes auth role the gateway logs in as (required for the vault backend).
+    role: "vault-gateway"
     # secretPrefix scopes all secret lookups to an environment prefix,
     # e.g. "prod/" so that "shared/postgres" resolves to "prod/shared/postgres".
     secretPrefix: ""

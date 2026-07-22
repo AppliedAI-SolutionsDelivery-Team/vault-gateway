@@ -8,7 +8,6 @@ serviceAccount:
     eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/vault-gateway-role"
 
 config:
-  backend:
-    type: "aws"
+  backend: "aws"
   aws:
     region: "me-south-1"

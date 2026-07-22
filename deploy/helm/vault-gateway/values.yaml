@@ -162,56 +162,84 @@ readinessProbe:
 # -----------------------------------------------------------------------------
 # Application configuration.
 # This entire block is rendered verbatim into the ConfigMap as config.yaml and
-# mounted at /etc/vault-gateway/config.yaml.
+# mounted at /etc/vault-gateway/config.yaml. The schema here MUST match the
+# structs in internal/config/config.go — CI renders this and runs it through
+# config.Load to guard against drift.
 # -----------------------------------------------------------------------------
 config:
+  # Top-level backend selector (a string). One of: aws | azure | vault | gcp.
+  backend: "aws"
+
   server:
-    # Vault-compatible HTTPS API listener.
-    address: "0.0.0.0:8200"
+    # Vault-compatible HTTPS API listener. Must match .Values.service.port.
+    port: 8200
+    host: "0.0.0.0"
     tls:
       enabled: true
       certFile: "/etc/vault-gateway/tls/tls.crt"
       keyFile: "/etc/vault-gateway/tls/tls.key"
+      minVersion: "1.2"
     readTimeout: "30s"
     writeTimeout: "30s"
     idleTimeout: "120s"
 
-  backend:
-    # One of: aws | azure | vault | gcp.
-    type: "aws"
-    cacheTTL: "60s"
-
-  # AWS Secrets Manager backend settings (used when backend.type == aws).
+  # AWS Secrets Manager backend settings (used when backend == aws).
   aws:
     region: "us-east-1"
     # Optional prefix prepended to secret names on lookup.
     secretPrefix: ""
+    cache:
+      enabled: true
+      ttl: "60s"
+      maxEntries: 1000
+      negativeTTL: "10s"
 
-  # Azure Key Vault backend settings (used when backend.type == azure).
+  # Azure Key Vault backend settings (used when backend == azure).
   azure:
     vaultURL: ""
+    namingStrategy: "flat"
+    secretPrefix: ""
+    cache:
+      enabled: true
+      ttl: "60s"
+      maxEntries: 1000
+      negativeTTL: "10s"
 
-  # HashiCorp Vault backend settings (used when backend.type == vault).
+  # HashiCorp Vault backend settings (used when backend == vault).
   vault:
     address: ""
-    namespace: ""
+    authPath: "kubernetes"
+    role: ""
     tlsSkipVerify: false
+    secretPrefix: ""
+    cache:
+      enabled: true
+      ttl: "60s"
+      maxEntries: 1000
+      negativeTTL: "10s"
 
-  # GCP Secret Manager backend settings (used when backend.type == gcp).
+  # GCP Secret Manager backend settings (used when backend == gcp).
   gcp:
     projectID: ""
+    secretPrefix: ""
+    cache:
+      enabled: true
+      ttl: "60s"
+      maxEntries: 1000
+      negativeTTL: "10s"
 
   auth:
-    # Kubernetes TokenReview-based authentication.
-    kubernetes:
-      enabled: true
+    tokenTTL: "3600s"
+    tokenCleanupInterval: "60s"
+    maxTokensPerIdentity: 100
+    # roles is a MAP keyed by role name.
     roles:
-      - name: "default-role"
-        namespaces:
+      default-role:
+        allowedNamespaces:
           - "default"
-        serviceAccounts:
+        allowedServiceAccounts:
           - "*"
-        paths:
+        allowedPaths:
           - "secret/*"
 
   logging:
@@ -220,10 +248,17 @@ config:
 
   metrics:
     enabled: true
-    address: "0.0.0.0:9090"
+    port: 9090
     path: "/metrics"
 
+  # Backend connectivity checks. backendCheck is false by default so that a
+  # transient backend outage does not flip every replica NotReady at once.
   healthCheck:
-    address: "0.0.0.0:9090"
-    livenessPath: "/healthz"
-    readinessPath: "/readyz"
+    backendCheck: false
+    backendCheckTimeout: "5s"
+    backendCheckInterval: "30s"
+
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 100
+    burst: 200
